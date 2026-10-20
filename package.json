@@ -1,0 +1,33 @@
+{
+  "name": "DigitalPaperApp-arm64",
+  "description": "PC application for Digital Paper (Apple Silicon port)",
+  "version": "1.4.7.1202-arm64.1",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --debug",
+    "rebuild": "node scripts/rebuild-addons.js",
+    "dist": "electron-builder --arm64 --mac"
+  },
+  "dependencies": {
+    "@electron/remote": "2.1.3",
+    "bonjour-hap": "3.10.5",
+    "fs-extra": "^5.0.0",
+    "semver": "^5.3.0",
+    "sqlite3": "6.0.1",
+    "winston": "^2.3.0"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "nan": "^2.22.0",
+    "node-gyp": "^11.0.0"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "portNotes": {
+    "mw-stack": "Sony mw-* middleware tree vendored under node_modules/ from app 1.4.7.01202 asar; not resolvable from npm registry",
+    "bt": "bt-pairing-mw / bt-pan-mw stubbed out (no source available); Bluetooth channel disabled in this port",
+    "sqlite3": "replaces npm:@vscode/sqlite3@5.0.7 with official sqlite3 (API compatible)",
+    "mdns": "mw-discovery-ctrl/node_modules/mdns replaced by bonjour-hap compatibility layer"
+  }
+}

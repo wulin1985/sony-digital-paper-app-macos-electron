@@ -1,0 +1,19 @@
+--- a/node_modules/mw-auth-ctrl/authctrl.js
++++ b/node_modules/mw-auth-ctrl/authctrl.js
+@@ -164,6 +164,16 @@
+     
+     var res = lastResponse;
+     const nonce = res.nonce;
++
++    // [arm64-port] Guard against a non-string nonce (e.g. the device
++    // returned 200 with an error body). The original code crashed the main
++    // process with an uncaught TypeError ('nonce must be string') because
++    // authadpt.signNonce throws synchronously; report it as an auth error
++    // instead so the app can recover via its re-auth flow.
++    if ( typeof nonce !== 'string' || nonce.length === 0 ) {
++      callback(mwe.genError(mwe.E_MW_AUTH_FAILED, 'Invalid nonce in auth response.'));
++      return;
++    }
+ 
+     store.getClientPrivateKey(function(err, data) {
+       if ( err ) {

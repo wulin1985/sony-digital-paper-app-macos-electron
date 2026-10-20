@@ -1,0 +1,66 @@
+--- a/node_modules/mw-port-fwdr/portfwdr.js
++++ b/node_modules/mw-port-fwdr/portfwdr.js
+@@ -33,7 +33,10 @@
+ const LOCAL_HTTPS_PORT_BASE = process.env.MW_PORTFWDR_PORT_HTTPS_FIRST;
+ const LOCAL_HTTPS_PORT_LAST = process.env.MW_PORTFWDR_PORT_HTTPS_LAST;
+ 
+-const TIME_OUT = Number(process.env.MW_PORTFWDR_CONNECT_TIMEOUT);
++// [arm64-port] Number(undefined) is NaN; modern Node throws RangeError on
++// setTimeout(NaN) (legacy Node silently treated it as 0). Fall back to the
++// same default main.js configures (3000ms).
++const TIME_OUT = Number(process.env.MW_PORTFWDR_CONNECT_TIMEOUT) || 3000;
+ // var portShift =0;
+ 
+ var nowUsingPortFwdrNum = 0;
+@@ -246,8 +249,11 @@
+         }
+ 
+         // Close current port, and Listen on the new port.
++        // [arm64-port] omit host to bind dual-stack (:: incl. IPv4-mapped
++        // 127.0.0.1): on Node 17+ listen('localhost') binds ::1 only, and
++        // Chromium's localhost mapping may try 127.0.0.1 first.
+         portForwarder.close(function(){
+-          portForwarder.listen(fromPort,fromHost);
++          portForwarder.listen(fromPort);
+         });
+       });
+ 
+@@ -277,12 +283,13 @@
+         }
+ 
+         // Close current port, and Listen on the new port.
++        // [arm64-port] dual-stack bind, see note above.
+         portForwarder.close(function(){
+-          portForwarder.listen(fromPort,fromHost);
++          portForwarder.listen(fromPort);
+         });
+       });
+     });
+-    
++
+     portForwarder.on('error', function(err) {
+ 
+       if ( err.code === 'EADDRINUSE' || err.code === 'EACCES' ) {
+@@ -301,8 +308,9 @@
+         }
+ 
+         // Close current port, and Listen on the new port.
++        // [arm64-port] dual-stack bind, see note above.
+         portForwarder.close(function(){
+-          portForwarder.listen(fromPort,fromHost);
++          portForwarder.listen(fromPort);
+         });
+         return;
+       }
+@@ -311,7 +319,10 @@
+       handled = true;
+     });
+ 
+-    var ret = portForwarder.listen(fromPort, fromHost);
++    // [arm64-port] dual-stack bind: no host argument binds :: with
++    // IPv4-mapped addresses, so both 127.0.0.1 and ::1 can reach the
++    // forwarder regardless of resolver ordering on Node 17+/Chromium.
++    var ret = portForwarder.listen(fromPort);
+     
+     return portForwarder;
+   }

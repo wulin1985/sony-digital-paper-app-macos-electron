@@ -1,0 +1,144 @@
+--- a/main.js
++++ b/main.js
+@@ -13,6 +13,54 @@
+ 
+ const electron = require('electron');
+ 
++// [arm64-port] Node >= 17 resolves 'localhost' per-OS-order (macOS prefers ::1).
++// The mw-port-fwdr local forwarder binds to 'localhost' while consumers force
++// family:4 (127.0.0.1), causing ECONNREFUSED after the Electron 10 (Node 12) upgrade.
++// Restore legacy IPv4-first ordering process-wide.
++try { require('dns').setDefaultResultOrder('ipv4first'); } catch (e) { /* older node */ }
++
++// [arm64-port] All Web API XHRs target https://digitalpaper.local:<local port
++// forwarder port>. On modern Chromium, .local resolves via mDNS to the
++// DEVICE's IP, where nothing listens on the forwarder's port. At the same
++// time the hostname must NOT change in the URL: the device sets its session
++// cookie with 'Domain=digitalpaper.local' (and its CORS policy only allows
++// Origin null with credentials). Map the hostname to 127.0.0.1 at the
++// Chromium network layer so XHRs reach the LOCAL port forwarder while URL,
++// Host header and cookie domain matching all stay 'digitalpaper.local'.
++// (mDNS discovery in mw-discovery-ctrl uses its own UDP stack in the main
++// process and is unaffected.)
++electron.app.commandLine.appendSwitch('host-rules', 'MAP digitalpaper.local 127.0.0.1');
++
++// [arm64-port] Electron >= 14 removed the built-in remote module; the legacy
++// UI stack (mw-conn-ctrl and 18+ view files) still reads `electron.remote`.
++// @electron/remote restores it; preload.js exposes it to renderers.
++try {
++    const remoteMain = require('@electron/remote/main');
++    remoteMain.initialize();
++    // [arm64-port] @electron/remote requires per-WebContents enable();
++    // enable for every window this app creates (main + dialogs).
++    electron.app.on('web-contents-created', function (event, webContents) {
++        try { remoteMain.enable(webContents); } catch (e) { /* ignore */ }
++    });
++    // [arm64-port] On Electron >= 28 @electron/remote resolves remote.require()
++    // through a module walk that lands on an internal electron module, losing
++    // the app's node_modules path. Intercept 'remote-require' and resolve from
++    // this main.js context instead.
++    // Module.createRequire pins resolution to this main.js file regardless of
++    // how Electron wires up require.main (whose .paths is undefined on >= 28).
++    const { createRequire } = require('module');
++    const mainRequire = createRequire(require('path').join(__dirname, 'main.js'));
++    electron.app.on('remote-require', function (event, webContents, moduleName) {
++        try {
++            event.returnValue = mainRequire(moduleName);
++        } catch (e) {
++            console.warn('[arm64-port] remote-require resolve failed:', moduleName, e.message);
++        }
++    });
++} catch (e) {
++    console.error('[arm64-port] @electron/remote/main initialize failed:', e);
++}
++
+ // アプリの生存期間をコントロールするモジュール
+ let electronReady = false;
+ 
+@@ -26,6 +74,49 @@
+     callback(true);
+ });
+ 
++// [arm64-port] Device session cookie relay.
++// The device authenticates via a 'Credentials' cookie set by PUT /auth
++// (Set-Cookie: Credentials=...; Domain=digitalpaper.local; Secure - no
++// SameSite attribute). On the original Electron 10 (Chromium 85) the
++// SameSite-by-default policy was not yet in effect, so cross-site XHRs
++// from the file:// UI carried the cookie. Modern Chromium defaults to
++// SameSite=Lax and additionally restricts third-party cookies, so the
++// browser neither stores nor sends it - every API call after a
++// successful auth returned 401/40100. Relay the cookie at the network
++// layer instead: capture it from device responses and inject it into
++// subsequent device requests. (Header key casing is inconsistent in
++// Electron 44 - 'Set-Cookie' vs 'set-cookie' - so match case-insensitively.)
++app.on('ready', function () {
++    const session = electron.session;
++    let deviceCookie = null;
++    const isDeviceUrl = function (url) {
++        return typeof url === 'string' && url.indexOf('digitalpaper.local') >= 0;
++    };
++    const pickSetCookie = function (headers) {
++        if (!headers) { return null; }
++        const keys = Object.keys(headers);
++        for (let i = 0; i < keys.length; i++) {
++            if (keys[i].toLowerCase() === 'set-cookie') { return headers[keys[i]]; }
++        }
++        return null;
++    };
++    session.defaultSession.webRequest.onHeadersReceived(function (details, callback) {
++        if (isDeviceUrl(details.url)) {
++            const sc = pickSetCookie(details.responseHeaders);
++            if (sc && sc.length) {
++                deviceCookie = sc.map(function (c) { return c.split(';')[0]; }).join('; ');
++            }
++        }
++        callback({ responseHeaders: details.responseHeaders });
++    });
++    session.defaultSession.webRequest.onBeforeSendHeaders(function (details, callback) {
++        if (deviceCookie && isDeviceUrl(details.url)) {
++            details.requestHeaders['Cookie'] = deviceCookie;
++        }
++        callback({ requestHeaders: details.requestHeaders });
++    });
++});
++
+ // ネイティブのブラウザウィンドウを作るためのモジュール
+ const BrowserWindow = electron.BrowserWindow;
+ 
+@@ -1124,7 +1215,10 @@
+         nodeIntegration:  true,
+         enableRemoteModule:  true,
+         webviewTag:  true,
+-    };    
++        // [arm64-port] sandbox off + preload for legacy renderer
++        sandbox: false,
++        preload: path.join(__dirname, 'preload.js'),
++        };    
+     mainWindow  =  new  BrowserWindow(opt);
+ 
+     if (appOpts.windowId === 'explorer') {
+@@ -1432,7 +1526,10 @@
+         nodeIntegration:  true,
+         enableRemoteModule:  true,
+         webviewTag:  true,
+-    };
++        // [arm64-port] sandbox off + preload for legacy renderer
++        sandbox: false,
++        preload: path.join(__dirname, 'preload.js'),
++        };
+     // this.browserWindowOptions.icon = appIcon;
+     this.channel4Parent = channel4Parent;
+     this.childWin = new BrowserWindow(this.browserWindowOptions);
+@@ -1910,7 +2007,11 @@
+     let enumProcesses = function() {
+         ps.getProcessList((err, results) => {
+             if (err) {
+-                callback(err);
++                // [arm64-port] process enumeration may fail in restricted environments;
++                // the Profile Manager is a Sony reset utility that is not expected to run
++                // here, so treat enumeration failure as "not running" instead of quitting.
++                console.warn('[arm64-port] tiny-ps enumeration failed, assuming Profile Manager not running:', err);
++                callback(undefined, false);
+             } else if (!containsProfileManager(results)) {
+                 callback(undefined, false);
+             } else {

@@ -1,0 +1,54 @@
+--- a/node_modules/mw-conn-ctrl/connctrl.js
++++ b/node_modules/mw-conn-ctrl/connctrl.js
+@@ -40,6 +40,14 @@
+ // const authctrl = require('mw-auth-ctrl');
+ 
+ 
++// [arm64-port] The base host name MUST stay 'digitalpaper.local': the device
++// sets its session cookie with 'Domain=digitalpaper.local' and its CORS
++// policy allows only Origin null (file:// pages) with credentials. The
++// hostname is remapped to 127.0.0.1 at the Chromium network layer via
++// --host-rules in main.js, so XHRs reach the LOCAL port forwarder while
++// the URL host (and therefore cookie domain matching) stays unchanged.
++// All XHRs must set withCredentials=true so the cross-origin request
++// carries the 'Credentials' cookie (see auth-flow-lab findings).
+ const WEBAPI_BASE_URL = 'https://digitalpaper.local';
+ const WEBAPI_CHECK_BASE_URL = 'http://digitalpaper.local';
+ const WEBAPI_HTTPS_PORT = 8443;
+@@ -385,6 +393,8 @@
+         var xhrReq0 = new XMLHttpRequest();
+         xhrReq0.timeout = XHR_TIMEOUT;
+         xhrReq0.responseType = "json";
++        // [arm64-port] carry the session cookie on this cross-origin request
++        xhrReq0.withCredentials = true;
+         xhrReq0.open('GET', checkUrl, true);
+         xhrReq0.ontimeout = function(err) {
+             self.authenticating_ = false;
+@@ -442,6 +452,8 @@
+             var xhrReq1 = new XMLHttpRequest();
+             xhrReq1.timeout = XHR_TIMEOUT;
+             xhrReq1.responseType = "json";
++            // [arm64-port] carry the session cookie on this cross-origin request
++            xhrReq1.withCredentials = true;
+             xhrReq1.open(reqProp1.method, reqProp1.url, true);
+             xhrReq1.ontimeout = function(err) {
+                 callback(mwe.genWebApiError(mwe.E_MW_AUTH_FAILED, 'XHR failed',
+@@ -482,6 +494,9 @@
+                     var xhrReq2 = new XMLHttpRequest();
+                     xhrReq2.timeout = XHR_TIMEOUT;
+                     xhrReq2.responseType = "json";
++                    // [arm64-port] the PUT /auth response Set-Cookie must be
++                    // stored (Domain=digitalpaper.local matches this host)
++                    xhrReq2.withCredentials = true;
+                     xhrReq2.open(reqProp2.method, reqProp2.url, true);
+                     xhrReq2.ontimeout = function(err) {
+                         callback(mwe.genWebApiError(mwe.E_MW_DEVICE_CONN_FAILED, 'XHR failed',
+@@ -550,6 +565,8 @@
+         var xhrReq = new XMLHttpRequest();
+         xhrReq.timeout = XHR_TIMEOUT;
+         xhrReq.responseType = "json";
++        // [arm64-port] carry the session cookie on this cross-origin request
++        xhrReq.withCredentials = true;
+         xhrReq.open(METHOD_GET, baseUrl + WEBAPI_PING, true);
+         xhrReq.ontimeout = function(err) {
+             callback(err);

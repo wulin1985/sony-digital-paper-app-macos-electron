@@ -1,0 +1,10 @@
+--- a/app/scripts/View/ExternalOutput/ScreenshotTaker.js
++++ b/app/scripts/View/ExternalOutput/ScreenshotTaker.js
+@@ -87,6 +87,7 @@
+                         var xhrReq = new XMLHttpRequest();
+                         xhrReq.responseType = 'arraybuffer';
+                         xhrReq.timeout = 1000 * 30;
++                        xhrReq.withCredentials = true; // [arm64-port] carry device session cookie
+                         xhrReq.open(httpMethod, baseUrl + apiPath, true);
+                         xhrReq.ontimeout = function (err) {
+                             if (!handled) {

@@ -1,0 +1,30 @@
+--- a/app/scripts/View/Explorer/ExplorerToolbarView.js
++++ b/app/scripts/View/Explorer/ExplorerToolbarView.js
+@@ -395,8 +395,10 @@
+                         }
+                     });
+                     this.listenTo(this, "mouseup", function (e) {
+-                        if (e.toElement.id === 'lbl-toolbar-help' ||
+-                            e.toElement.id === 'toolbar-help')
++                        // [arm64-port] toElement is a non-standard property that newer Chromium versions may return undefined, degrade to e.target to prevent null reference
++                        var toEl = e.toElement || e.target;
++                        if (toEl && (toEl.id === 'lbl-toolbar-help' ||
++                            toEl.id === 'toolbar-help'))
+                             return;
+                         $('.dropdown-content').hide();
+                     });
+@@ -554,9 +556,11 @@
+                 };
+                 ExplorerToolbarView.prototype.clickToolbarHelp = function (ev) {
+                     if (ev.type === 'click') {
+-                        if (ev.toElement.id === 'helpGuide' ||
+-                            ev.toElement.id === 'helpSupport' ||
+-                            ev.toElement.id === 'helpSuppl')
++                        // [arm64-port] toElement is a non-standard property that newer Chromium versions may return undefined, degrade to ev.target to prevent null reference
++                        var toEl = ev.toElement || ev.target;
++                        if (toEl && (toEl.id === 'helpGuide' ||
++                            toEl.id === 'helpSupport' ||
++                            toEl.id === 'helpSuppl'))
+                             return;
+                     }
+                     var dropDownEl = this.$el.find('.dropdown-content');

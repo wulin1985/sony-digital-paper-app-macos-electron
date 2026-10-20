@@ -1,0 +1,7 @@
+{
+  "name": "mdns",
+  "version": "2.5.1-arm64shim",
+  "description": "Compatibility layer replacing node_mdns (dns_sd native bindings) with bonjour-hap pure-JS mDNS. Exposes only the API surface used by mw-discovery-ctrl: tcp(), createBrowser() with serviceUp/error events, start/stop.",
+  "main": "index.js",
+  "private": true
+}

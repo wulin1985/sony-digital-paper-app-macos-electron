@@ -1,0 +1,22 @@
+--- a/app/scripts/Model/Device/DeviceModel.js
++++ b/app/scripts/Model/Device/DeviceModel.js
+@@ -739,6 +739,9 @@
+                     var xhrReq = new XMLHttpRequest();
+                     xhrReq.responseType = 'arraybuffer';
+                     xhrReq.timeout = Model.BackboneSyncDefs.XHR_TIMEOUT;
++                    // [arm64-port] cross-origin XHR must carry the device
++                    // session cookie (Credentials, Domain=digitalpaper.local)
++                    xhrReq.withCredentials = true;
+                     xhrReq.open(httpMethod, urlRoot + urlPath, true);
+                     var callbackHandled = false;
+                     xhrReq.ontimeout = function (err) {
+@@ -830,6 +833,9 @@
+                     var xhrReq = new XMLHttpRequest();
+                     xhrReq.responseType = 'arraybuffer';
+                     xhrReq.timeout = Model.BackboneSyncDefs.XHR_TIMEOUT;
++                    // [arm64-port] cross-origin XHR must carry the device
++                    // session cookie (Credentials, Domain=digitalpaper.local)
++                    xhrReq.withCredentials = true;
+                     xhrReq.open(httpMethod, urlRoot + urlPath, true);
+                     var callbackHandled = false;
+                     xhrReq.ontimeout = function (err) {
